@@ -8,8 +8,10 @@ It does not use GPUs or any sensible clever things to do the matrix operations b
 
 There are three basic programs that communicate with each other via a chunk of shared memory.
 
-Loader - loads up the jpegs into RAM
+Loader - loads up the jpegs into RAM. Needs a control file to give a list of the files.
 Control - controls what goes on
-Display - Does the displaying
+Display - Does the displaying into an X window
 
-Other programs can create fonts for the ngine from a picture.
+font/merge creates fonts/sprites for the engine from a picture of the 
+
+Requires suffient RAM on the hold the processed jpegs. About 2-3 hundred per GB depending on screen resolution.
