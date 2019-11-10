@@ -10,14 +10,17 @@ int go;
 int tick;
 void status( struct Image_Bundle *, int );
 void *lfo(void *);
-int rates[10];
+int drone[3];
+int span[3];
+int cols[3];
 
 int main(int argc,char *argv[]) 
 { 
     FILE *tf;
     char in[25],pressed,counter[5],loop;
     struct Image_Bundle *shared_image;
-    int *col,instance;
+    int instance;
+    struct timespec tim, tim2;
     pthread_t lfo_id;
 
     // ftok to generate unique key 
@@ -28,14 +31,13 @@ int main(int argc,char *argv[])
   
     // shmat to attach to shared memory 
     shared_image = (struct Image_Bundle *) shmat(shmid,(void*)0,0); 
+    shared_image->maint=0;
     shared_image->stage=1;
     shared_image->speed=50;
     shared_image->control='h';
     shared_image->slipper=0;
     shared_image->dronep=0;
-    col=shared_image->colour;
-    shared_image->colour[0]=0;
-    shared_image->colour[1]=0;
+    shared_image->colour=0;
     instance=0;
     go=1;
     tick=0;
@@ -44,13 +46,27 @@ int main(int argc,char *argv[])
      shared_image->dmode[loop]='b';
     }
 
-    // spin off the LFOs
+    // wait for images to load
+    tim.tv_sec = 1;
+    tim.tv_nsec = 0L;
+    printf("Waiting for images to load ");
+    while (shared_image->icount<=0)
+    { 
+    	printf(".\n");
+    	nanosleep(&tim , &tim2);
+    }
+    printf("Loaded\n");
+
+    // spin off the LFO
+    shared_image->imax=shared_image->icount;
+    shared_image->imin=0;
+    span[0]=0;
+    span[1]=0;
+    span[2]=0;
+
+    printf("Starting the lfo\n");
    pthread_create(&lfo_id, NULL, lfo, shared_image);
-
-               char *line = NULL;  /* forces getline to allocate with malloc */
-    size_t len = 0;     /* ignored when line = NULL */
-    ssize_t read;
-
+	
 
      int cc;
     go=1;
@@ -84,7 +100,6 @@ int main(int argc,char *argv[])
          printf("Stage cam\n" ); 
          printf("How many frames\n" ); 
 	 scanf(" %d",&cc);
-         shared_image->pop=shared_image->stage;
          shared_image->stage=9;
 	 if (cc>0){ shared_image->camframes=cc; }
 	 break;
@@ -96,13 +111,25 @@ int main(int argc,char *argv[])
          printf("Basic display mode\n" ); 
 	 shared_image->dmode[instance]='b';
 	 break;
+      case 'c' :
+         printf("colour\n" );
+	 if (cols[0]>0){ cols[0]=0; shared_image->colour=0;printf("Colour normal\n");}else{
+         printf("min\n");
+         scanf(" %d",&cols[1]);
+         printf("max\n");
+         scanf(" %d",&cols[2]);
+         printf("rate seconds per cycle\n");
+         scanf(" %d",&cols[0]);}
+         break;
       case 'd' :	 
-         printf("Drone val 0-100\n" ); 
-	 scanf(" %d",&shared_image->dronep);
-	 break;
-      case 'D' :	 
-         printf("Drone rate 0-999n" ); 
-	 scanf(" %d",&rates[0]);
+	 if (drone[0]>0)
+	 {  shared_image->dronep=0;drone[0]=0;printf("Drone off \n");}else{
+         printf("Drone min 0-100\n" ); 
+	 scanf(" %d",&drone[1]);
+         printf("Drone max 0-100\n" ); 
+	 scanf(" %d",&drone[2]);
+         printf("Drone rate seconds per cycle\n" ); 
+	 scanf(" %d",&drone[0]);}
 	 break;
       case 'f' :	 
          printf("Quad frames\n" ); 
@@ -110,6 +137,8 @@ int main(int argc,char *argv[])
 	 break;
       case 'i' :	 
          printf("Insert Noise\n" ); 
+         printf("Type \n" ); 
+	 scanf(" %d",&shared_image->noise);
 	 shared_image->dmode[instance]='i';
 	 break;
       case 'j' :	 
@@ -137,17 +166,6 @@ int main(int argc,char *argv[])
 	 scanf(" %d",&cc);
 	 if (cc>0){ shared_image->speed=cc; }
 	 break;
-      case 'c' :
-         printf("colour\n" );
-         printf("Value 0-600\n" ); 
-	 scanf(" %d",col);
-	 // reset the ticker
-	 col[2]=0;
-	 break;
-      case 'C':
-         printf("Colo rate 100ths per percent\n" );
-	 scanf(" %d",col+1);
-	 break;
       case 'g' :
 	 printf ("Generate Text Enter?\n");
 	 printf ("Size\n");
@@ -161,9 +179,22 @@ int main(int argc,char *argv[])
 	 break;
       case 'k' :
 	 printf ("Random feed\n");
-	 scanf(" %d",&cc);
-	 shared_image->slipper=cc;
+	 if (shared_image->slipper==0){ shared_image->slipper=1; printf("Random..\n");}
+	 else {shared_image->slipper=0; printf("Ordered...\n");}
 	 break;
+      case 'K':
+	 //span[0] rate span[1] target span span[2] start span.
+	 printf ("Feed Lfo\n");
+	 if (span[0]==0){ 
+		printf("Spanning ... enter rate\n");
+	 	scanf(" %d",&span[0]);
+		printf("Enter size\n");
+	 	scanf(" %d",&span[1]);
+		 span[2]=1;
+	 } else {span[0]=0; span[2]=0;printf("Full span...\n");
+    		shared_image->imax=shared_image->icount;
+    		shared_image->imin=0; }
+      break;
       case 't' :
 	 printf ("Triplets\n");
 	 shared_image->dmode[instance]='t';
@@ -175,9 +206,9 @@ int main(int argc,char *argv[])
 	 break;
       case 'm' :
 	 printf("Maintain image\n");
-	 if ( shared_image->control=='m' )
-	 {shared_image->control=' ';printf("Free \n");}else
-	 { shared_image->control='m';printf("Maint \n");}
+	 if ( shared_image->maint==0 )
+	 {shared_image->maint=1;printf("Maint \n");}else
+	 { shared_image->maint=0;printf("Free \n");}
 	 break;
       case 'n' :
 	 printf ("Not the right way up\n");
@@ -199,7 +230,7 @@ int main(int argc,char *argv[])
 	 shared_image->control='q';
 	 go=0;
 	 break;
-      case '@' :
+      case '#' :
 	 printf("Relaoding drone\n");
 	 shared_image->control='@';
 	 break;
@@ -220,31 +251,81 @@ int main(int argc,char *argv[])
 
 void status (struct Image_Bundle *ib, int instance )
 {
-	printf ("Status Stage %d Status %c Camframes %d Col %d Instance %d Dmode %c\n",ib->stage,ib->control,ib->camframes,ib->colour[0],instance,ib->dmode[instance]);
+	int l;
+	printf ("Status %c Col %d loadp %d maint %d dronep %d slipper %d\n",ib->control,ib->colour,ib->loadp,ib->maint,ib->dronep,ib->slipper);
+	printf ("Images Count %d min %d max %d span rate %d span width %d\n",ib->icount,ib->imin,ib->imax,span[0],span[2]);
+	for (l=0;l<INST;l++)
+	{
+		printf ("Stage %d Status %c \n",l+1,ib->dmode[l]);
+	}
 }
 
 
 void *lfo(void *ib)
 {
         // This just ticks away in the background and increments things 
-        // Hundredths per tic.
+        // We sleep for 100th of a sec and adjust.
+	// Rate is seconds per cyclce.
            struct timespec tim, tim2;
 	   struct Image_Bundle *bu;
            tim.tv_sec = 0;
-           tim.tv_nsec = 100000000L;
+           tim.tv_nsec = 10000000L;
            bu=(struct Image_Bundle *)ib;
+	   int drone_count=0;
+	   int drone_direction=1;
+	   int cols_count=0;
+	   int cols_direction=1;
+	   int span_count=0;
+	   int span_rate;
+	   int grow_span=0;
+	   int m;
+	   m=6000;
+	   // span rate span[0]is the number of minutes for the whole thing.
+	   // whole thing is 60*100*span[0] ticks. To take action for all images.
 
         while (go==1)
         {
-		// drone iis [0]
                 nanosleep(&tim , &tim2);
-		if (rates[0] != 0)
+		// drone processing.
+		if(drone[0]>0)
 		{
-		bu->dronep+=rates[0];
-		if ( bu->dronep >= 500){ rates[0]=-rates[0];bu->dronep+=rates[0];}
-		if ( bu->dronep <=1){ rates[0]=-rates[0];bu->dronep+=rates[0];}
+			int delta,dv;
+			delta=drone[2]-drone[1];
+			drone_count=drone_count+drone_direction;
+			dv=(drone_count*delta)/(drone[0]*100);
+			if (dv>drone[2]){ drone_direction=-1; dv=drone[2];drone_count=((dv*100*drone[0])/delta)-1;}
+			if (dv<drone[1]){ drone_direction=1; dv=drone[1];drone_count=((dv*100*drone[0])/delta);}
+			bu->dronep=dv;
 		}
-		if (bu->slipper>0){ bu->slipper--;}
+		// image selection processing
+		if(span[0]>0)
+		{
+	   		span_rate=m*span[0]/bu->icount;
+	   		span_count++;
+			if (span_count>span_rate) 
+			{
+				span_count=0;
+				if (span[2]<span[1]){ span[2]++ ;bu->imax=bu->imin+span[2];}
+					else{
+					if (bu->imax+1<=bu->icount){bu->imax++;}
+					if (bu->imin+span[2]<bu->icount && grow_span==0){bu->imin++; }else{grow_span=1;m=2000;}
+					}
+				if (grow_span==1 && bu->imin>0){ bu->imin--;}	
+				//printf ("span 2  %d max %d min %d\n",span[2],bu->imax,bu->imin);
+			}
+		}else{ grow_span=0;m=6000;}
+		// colour cycle
+		if (cols[0]>0 )
+		{ 
+			int delta,cv;
+			delta=cols[2]-cols[1];
+	   		cols_count+=cols_direction;
+			cv=(cols_count*delta)/(cols[0]*100);
+			if (cv>cols[2]){ cols_direction=-1; cv=cols[2];cols_count=((cv*100*cols[0])/delta)-1;}
+			if (cv<cols[1]){ cols_direction=1; cv=cols[1];cols_count=((cv*100*cols[0])/delta);}
+			bu->colour=cv;
+		}		
+				
         }
         printf ("goodbye from lfo\n");
 };

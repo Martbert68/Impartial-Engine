@@ -25,7 +25,7 @@ void close_x();
 void redraw();
 void paint_it(int *,XColor *);
 void do_image (unsigned char *,int,char,int *,int *,int );
-void display_buffer (unsigned char *,int,int *,unsigned char *,int);
+void display_buffer (unsigned char *,int,int,unsigned char *,int);
 int line(char *,int,int,int,int,int,int);
 int *pline(char *,int *,int,int,int,int);
 int arc(char *,int,int,int,int,int,int,int);
@@ -41,6 +41,8 @@ void scroll(unsigned char *,unsigned char *,int);
 void juxta(unsigned char *,unsigned char *,int);
 void not_up(unsigned char *,unsigned char *,int);
 void x_split(unsigned char *,unsigned char *,int);
+void y_split(unsigned char *,unsigned char *,int);
+void xy_split(unsigned char *,unsigned char *,int);
 int frames(unsigned char *,unsigned char *,unsigned char *,int);
 void *filter(void *);
 struct font {
@@ -197,13 +199,13 @@ if (recycle==0)
 	    	}else{
 	    buffer_state[ob1] = 3;
 	    display_buffer (average_buffer+(THREE*ob1),loaded_image->speed,loaded_image->colour,loaded_image->drone,loaded_image->dronep);
-            if (reload==1){ reload=0; memcpy(loaded_image->drone,average_buffer+(THREE*ob2),THREE);}
+            if (reload==1){ reload=0; memcpy(loaded_image->drone,average_buffer+(THREE*ob1),THREE);}
 	    if (recycle==0) {buffer_state[ob1] = 0;}else{buffer_state[ob1] = 4;}
 	    lob=ob1;
 		}
 	}else if ( buffer_state[ob1] == 2  ) {
 	    buffer_state[ob1] = 3;
-            if (reload==1){ reload=0; memcpy(loaded_image->drone,average_buffer+(THREE*ob2),THREE);}
+            if (reload==1){ reload=0; memcpy(loaded_image->drone,average_buffer+(THREE*ob1),THREE);}
 	    display_buffer (average_buffer+(THREE*ob1),loaded_image->speed,loaded_image->colour,loaded_image->drone,loaded_image->dronep);
 	    if (recycle==0) {buffer_state[ob1] = 0;}else{buffer_state[ob1] = 4;}
 	    lob=ob1;
@@ -268,7 +270,20 @@ void *filter(void *ib )
 		// 0 free 1 filling 2 fresh 3 reading 
 		if (got_i == 0 )
 		{
-			if ( buffer_state[inbuf1] == 2  )
+			// both ready chose other one from last time.
+			if ( buffer_state[inbuf1] == 2  && buffer_state[inbuf2] == 2 )
+			{ 
+				if (iplace==inbuf1)
+				{	
+					buffer_state[inbuf2]=3;
+					iplace=inbuf2;
+					got_i=1;
+				}else{
+					buffer_state[inbuf1]=3;
+					iplace=inbuf1;
+					got_i=1;
+				}
+			} else if ( buffer_state[inbuf1] == 2  )
 			{
 				buffer_state[inbuf1]=3;
 				iplace=inbuf1;
@@ -318,7 +333,7 @@ void *filter(void *ib )
 				dimage(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
          		break;
       			case 'i' :
-				noise(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
+				noise(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),bundle->noise);
          		break;
       			case 'j' :
 				juxta(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
@@ -334,6 +349,12 @@ void *filter(void *ib )
 			break;
       			case 'u' :
 				x_split(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
+         		break;
+      			case 'v' :
+				y_split(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
+         		break;
+      			case 'w' :
+				xy_split(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
          		break;
 			case 'f' :
 				hold_out=frames(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),sideb+(inst*THREE*5),entry);
@@ -378,14 +399,69 @@ void x_split(unsigned char *input,unsigned char *output,int ent)
         {
                 int along;
                 along=y*XS;
-                for (x=0;x<XS/2;x+=3)
+                for (x=0;x<XH;x+=3)
                 {
-                        output[along+x]=input[along+(x*2)];
-                        output[along+x+1]=input[along+(x*2)+1];
-                        output[along+x+2]=input[along+(x*2)+2];
-                        output[along+x+XH]=input[along+(x*2)+3];
-                        output[along+x+XH+1]=input[along+(x*2)+4];
-                        output[along+x+XH+2]=input[along+(x*2)+5];
+			int aa=along+x; int bb=along+(2*x);
+                        output[aa]=input[bb];
+                        output[aa+1]=input[bb+1];
+                        output[aa+2]=input[bb+2];
+                        output[aa+XH]=input[bb+3];
+                        output[aa+XH+1]=input[bb+4];
+                        output[aa+XH+2]=input[bb+5];
+                }
+        }
+
+}
+
+void y_split(unsigned char *input,unsigned char *output,int ent)
+{
+        int y,x;
+        for (y=0;y<Y_SIZE/2;y++)
+        {
+                int along,alongp,eve,odd;
+                along=y*XS;
+                alongp=(y+(Y_SIZE/2))*XS;
+                eve=2*y*XS;
+		odd=2*(y+1)*XS;
+                for (x=0;x<XS;x+=3)
+                {
+			int aa=along+x; int dd=alongp+x; int bb=odd+x; int cc=eve+x;
+                        output[aa]=input[cc];
+                        output[aa+1]=input[cc+1];
+                        output[aa+2]=input[cc+2];
+                        output[dd]=input[bb];
+                        output[dd+1]=input[bb+1];
+                        output[dd+2]=input[bb+2];
+                }
+        }
+
+}
+
+void xy_split(unsigned char *input,unsigned char *output,int ent)
+{
+        int y,x;
+        for (y=0;y<Y_SIZE/2;y++)
+        {
+                int along,alongp,eve,odd;
+                along=y*XS;
+                alongp=(y+(Y_SIZE/2))*XS;
+                eve=2*y*XS;
+                odd=2*(y+1)*XS;
+                for (x=0;x<XH;x+=3)
+                {
+                        int aa=along+x; int dd=alongp+x; int bb=odd+(2*x); int cc=eve+(2*x);
+                        output[aa]=input[cc];
+                        output[aa+XH]=input[cc+3];
+                        output[aa+1]=input[cc+1];
+                        output[aa+1+XH]=input[cc+4];
+                        output[aa+2]=input[cc+2];
+                        output[aa+2+XH]=input[cc+5];
+                        output[dd]=input[bb];
+                        output[dd+XH]=input[bb+3];
+                        output[dd+1]=input[bb+1];
+                        output[dd+1+XH]=input[bb+4];
+                        output[dd+2]=input[bb+2];
+                        output[dd+2+XH]=input[bb+5];
                 }
         }
 
@@ -394,15 +470,72 @@ void x_split(unsigned char *input,unsigned char *output,int ent)
 void noise(unsigned char *input,unsigned char *output,int ent) 
 {
 	memcpy (output,input,THREE);
-	int point,loop;
-	for (loop=0;loop<ent*10000;loop++)
+	int point,loop,dots;
+	dots=THREE/3;
+	if (ent==0)
+	for (loop=0;loop<(dots/10);loop++)
 	{
-		point=rand()%(THREE/3);	
-		point=point*3;
-		output[point]=output[point]/2;
-		output[point+1]=output[point+1]/2;
-		output[point+2]=output[point+2]/2;
+		point=(rand()%dots)*3;
+		output[point]=255;
+		output[point+1]=255;
+		output[point+2]=255;
 	}
+	if (ent==1)
+	for (loop=0;loop<(dots/10);loop++)
+	{
+		point=(rand()%dots)*3;
+		output[point]=0;
+		output[point+1]=0;
+		output[point+2]=0;
+	}
+	if (ent==2)
+	for (loop=0;loop<(dots/20);loop++)
+	{
+		point=(rand()%dots)*3;
+		output[point]=0;
+		output[point+1]=0;
+		output[point+2]=0;
+		point=(rand()%dots)*3;
+		output[point]=255;
+		output[point+1]=255;
+		output[point+2]=255;
+	}
+	if (ent==3)
+	for (loop=0;loop<(dots/40);loop++)
+	{
+		point=(rand()%(dots-X_SIZE))*3;
+		output[point]=255;
+		output[point+3]=255;
+		output[point+XS]=255;
+		output[point+3+XS]=255;
+		point=(rand()%(dots-X_SIZE))*3;
+		output[point+1]=255;
+		output[point+4]=255;
+		output[point+XS+1]=255;
+		output[point+XS+4]=255;
+		point=(rand()%(dots-X_SIZE))*3;
+		output[point+2]=255;
+		output[point+5]=255;
+		output[point+XS+2]=255;
+		output[point+XS+5]=255;
+	}	
+        if (ent==4)
+        for (loop=0;loop<(dots/40);loop++)
+        {
+                point=(rand()%(dots-X_SIZE))*3;
+                output[point]=255-input[point];
+                output[point+1]=255-input[point+1];
+                output[point+2]=255-input[point+2];
+                output[point+3]=255-input[point+3];
+                output[point+4]=255-input[point+4];
+                output[point+5]=255-input[point+5];
+                output[point+XS]=255-input[point+XS];
+                output[point+XS+1]=255-input[point+XS+1];
+                output[point+XS+2]=255-input[point+XS+2];
+                output[point+XS+3]=255-input[point+XS+3];
+                output[point+XS+4]=255-input[point+XS+4];
+                output[point+XS+5]=255-input[point+XS+5];
+        }
 }
 
 void juxta(unsigned char *input,unsigned char *output,int ent) 
@@ -410,24 +543,22 @@ void juxta(unsigned char *input,unsigned char *output,int ent)
         int y,x,Y,X;
 	int x1,x2,x3,x4,y1,y2,y3,y4;
 
-	x1=ent*5;x2=X_SIZE-(ent*5);x3=0;x4=X_SIZE;
-	y1=0;y2=0;y3=Y_SIZE-1;y4=Y_SIZE-1;
-
 	for (y=0;y<Y_SIZE;y++)
 	{	
-		Y=((y-y1)*Y_SIZE)/(y3-y1);
+		int ALONG,along;
+		ALONG=y*XS;
+		along=y*XS;
 		for (x=0;x<X_SIZE;x++)
 		{
-			X=((x-x1)*X_SIZE*(y3-y))/((x2-x1)*(y3-y1))+((x-x3)*X_SIZE*(y1-y)/((x4-x3)*(y1-y3)));
-			//X=((x-x3)*X_SIZE*(1)/((x4-x3)*(1)));
-			if (X>=0 && X<X_SIZE && Y>=0 && Y<Y_SIZE )
+			int xp,p;
+			p=along+(3*x);
+			xp=(x*(Y_SIZE-(y/2)))/Y_SIZE;
+			if (xp>0 && xp<X_SIZE)
 			{
-				int P,p;
-				P=(Y*X_SIZE*3)+(X*3);
-				p=(y*X_SIZE*3)+(x*3);
-				output[p]=input[P];
-				output[p+1]=input[P+1];
-				output[p+2]=input[P+2];
+			xp=(xp*3)+ALONG;
+			output[p]=input[xp];
+			output[p+1]=input[xp+1];
+			output[p+2]=input[xp+2];
 			}
 		}
 	}
@@ -561,26 +692,13 @@ int frames(unsigned char *input,unsigned char *output,unsigned char * buff,int e
                  		output[along+x+1]=buff[2*(along+x)+1];
                  		output[along+x+2]=buff[2*(along+x)+2];
 			}
-			/*//blur the top right line
-                 	output[along+x]=(buff[2*(along+x)]+buff[THREE+(2*along)])/2;
-                 	output[along+x+1]=(buff[2*(along+x+1)]+buff[(THREE+(2*along))+1])/2;
-                 	output[along+x+2]=(buff[2*(along+x+2)]+buff[(THREE+(2*along))+2])/2; */
 		}
-		/*// blur the left bottom line
-			along=3*y*X_SIZE;
-       			for (x=0;x<(XH-1);x+=3)
-			{
-                 	output[along+x]=(buff[2*(along+x)]+buff[(2*THREE)+(2*along)+x])/2;
-                 	output[along+x+1]=(buff[2*(along+x+1)]+buff[((2*THREE)+(2*along))+x+1])/2;
-                 	output[along+x+2]=(buff[2*(along+x+2)]+buff[((2*THREE)+(2*along))+x+2])/2;
-			} */
-
         	f=1;
         	bp=f*THREE;
         	for (y=0;y<Y_SIZE/2;y++)
         	{
                 	along=3*y*X_SIZE;
-                	for (x=3;x<XH;x+=3)
+                	for (x=0;x<XH;x+=3)
                 	{
                         	output[XH+along+x]=buff[bp+2*(along+x)];
                         	output[XH+along+x+1]=buff[bp+2*(along+x)+1];
@@ -589,10 +707,10 @@ int frames(unsigned char *input,unsigned char *output,unsigned char * buff,int e
         	}
         	f=2;
         	bp=f*THREE;
-        	for (y=1;y<Y_SIZE/2;y++)
+        	for (y=0;y<Y_SIZE/2;y++)
         	{
                 	along=3*y*X_SIZE;
-                	for (x=0;x<XH;x+=3)
+                	for (x=0;x<=XH;x+=3)
                 	{
                         	output[YH+along+x]=buff[bp+2*(along+x)];
                         	output[YH+along+x+1]=buff[bp+2*(along+x)+1];
@@ -604,7 +722,7 @@ int frames(unsigned char *input,unsigned char *output,unsigned char * buff,int e
         	for (y=0;y<Y_SIZE/2;y++)
         	{
                 	along=3*y*X_SIZE;
-                	for (x=0;x<XH;x+=3)
+                	for (x=0;x<=XH;x+=3)
                 	{
                         	output[BH+along+x]=buff[bp+2*(along+x)];
                         	output[BH+along+x+1]=buff[bp+2*(along+x)+1];
@@ -617,162 +735,7 @@ int frames(unsigned char *input,unsigned char *output,unsigned char * buff,int e
 	if (b<3){ return 1;}else{return 0;}
 }
 
-
-
-/*
-void do_image (unsigned char *loaded,int tdelay,char dmode,int *ring,int *colour,int hold)
-{
-	 int along,along1,age,cycle,rring,bring,pf[11],tb,x,y,z,XH;
-	 rring=*ring;
-	 tb=10*THREE;
-	 XH=(3*X_SIZE)/2;
-	// we keep 10 frames in memory in ab unless held
-	if (hold==0)
-	{
-		for (age=0;age<10;age++)
-		{
-			int offset;
-			offset=rring-age;	
-			if (offset < 0) { offset =10+offset; }
-			pf[age]=offset*THREE;
-		}
-		//memcpy (ab+(rring*THREE),loaded,THREE); 
-		//memcpy (ab+tb,loaded,THREE); 
-	}else{
-		// pull it back one
-		if (*ring>0){ *ring=*ring-1;}else{*ring=9;}
-	}
-
-       switch(dmode) {
-       case 'b' :
-		display_buffer(loaded,tdelay,colour);
-	 break;
-	case 'p':
-	 	buffer_state[0]=2;
-	 	for (z=69;z<70;z+=1)
-		{			
-	 	for (x=0;x<X_SIZE;x+=30)
-		{
-		int xoff;
-		if (x<X_SIZE/2){xoff=x+z;}else{xoff=x-z;}
-		xoff=((((X_SIZE/2)-x)*z)/100)+x;
-		line (ab+tb ,xoff,0,x,Y_SIZE,2,155);
-		}
-	 	for (y=0;y<Y_SIZE;y+=5)
-		{
-		int yoff;
-		yoff=((Y_SIZE-y)*z)/115;
-		line (ab+tb,yoff,y,X_SIZE-yoff,y,2,155);
-		y=y+(y/40);
-		}
-                display_buffer(ab+tb,tdelay,colour);
-		}
-	break;
-       case 's' :
-                for (along=0;along<THREE;along+=3)
-                {
-			int intensity,mintensity,t;
-			intensity=ab[pf[1]+along]+ab[pf[1]+along+1]+ab[pf[1]+along+2];
-			mintensity=ab[pf[0]+along]+ab[pf[0]+along+1]+ab[pf[0]+along+2];
-			if ( mintensity==0 ){ mintensity=1;}
-			t=(ab[pf[0]+along]*intensity)/mintensity; if (t > 255 ){ t=255;} ab[along+tb]=t;
-			t=(ab[pf[0]+along+1]*intensity)/mintensity; if (t > 255 ){ t=255;} ab[along+tb+1]=t;
-			t=(ab[pf[0]+along+2]*intensity)/mintensity; if (t > 255 ){ t=255;} ab[along+tb+2]=t;
-                }
-                display_buffer(ab+tb,tdelay,colour);
-	break;	 
-       case 'u' :
-		printf ("la\n");
-                for (y=0;y<Y_SIZE;y++)
-                {
-                        along=y*X_SIZE*3;
-                        for (x=0;x<XH;x+=3)
-                        {
-                                ab[along+x+pf[0]]=ab[tb+along+2*x];
-                                ab[along+x+pf[0]+1]=ab[tb+along+(2*x)+1];
-                                ab[along+x+pf[0]+2]=ab[tb+along+(2*x)+2];
-                                ab[along+x+pf[0]+XH]=ab[tb+along+(2*x)+3];
-                                ab[along+x+pf[0]+XH+1]=ab[tb+along+(2*x)+4];
-                                ab[along+x+pf[0]+XH+2]=ab[tb+along+(2*x)+5];
-                        }
-                }
-                display_buffer(ab+pf[0],tdelay,colour); 
-                memcpy (ab+tb,ab+pf[0],THREE);
-         break;
-       case 'v' :
-                for (y=0;y<Y_SIZE/2;y++)
-                {
-                        along=y*XS;
-                        along1=(y*2)*XS;
-                                for (x=0;x<XS;x++)
-                                {
-                                        ab[pf[1]+along+x]=ab[along1+tb+x];
-                                        ab[pf[1]+along+x+((Y_SIZE/2)*XS)]=ab[along1+tb+XS+x];
-                                }
-                }
-                display_buffer(ab+pf[1],tdelay,colour);
-                memcpy (ab+tb,ab+pf[1],THREE);
-         break;
-       case 'w' :
-		for (y=0;y<Y_SIZE/2;y++)
-		{
-			along=y*XS;
-			along1=(y*2)*XS;
-				for (x=0;x<XS;x++)
-				{
-					ab[pf[2]+along+x]=ab[along1+tb+x];
-					ab[pf[2]+along+x+((Y_SIZE/2)*XS)]=ab[along1+tb+XS+x];
-				}
-		}
-	       for (y=0;y<Y_SIZE;y++)
-                {
-                        along=y*XS;
-                        for (x=0;x<XH;x+=3)
-                        {
-                                ab[along+x+tb]=ab[pf[2]+along+2*x];
-                                ab[along+x+tb+1]=ab[pf[2]+along+(2*x)+1];
-                                ab[along+x+tb+2]=ab[pf[2]+along+(2*x)+2];
-                                ab[along+x+tb+XH]=ab[pf[2]+along+(2*x)+3];
-                                ab[along+x+tb+XH+1]=ab[pf[2]+along+(2*x)+4];
-                                ab[along+x+tb+XH+2]=ab[pf[2]+along+(2*x)+5];
-                        }
-                }
-                display_buffer(ab+tb,tdelay,colour);
-	 break;
-       // average mode
-       case 'a' :
-	// Display the new image.
-	//display_buffer(loaded,tdelay);
-	for (cycle=9;cycle<=10;cycle++)
-	{
-		for (along=0;along<THREE;along++)
-		{
-			int frames;
-			int point_sum=ab[pf[0]+along];
-			for (frames=1;frames<cycle;frames++)
-			{
-				point_sum=point_sum+ab[pf[frames]+along];
-			 }	
-			ab[along+tb]=(char)(point_sum/cycle); 
-		}			
-		display_buffer(ab+tb,tdelay,colour);
-	}
-        break;
-       case 't' :
-		for (along=0;along<THREE;along++)
-		{
-			ab[along+tb]=((ab[pf[0]+along]*ab[pf[2]+along])+(ab[pf[1]+along]*(255-ab[pf[2]+along])))/255;
-		}
-		display_buffer(ab+tb,tdelay,colour);
-	break;
-       default :
-	 break; }
-
-       // increment ring buffer for next time
-	if (*ring<9){ *ring=*ring+1;}else{*ring=0;}
-}
-*/
-void display_buffer (unsigned char *sent,int tdelay,int *col,unsigned char *dr,int dp)
+void display_buffer (unsigned char *sent,int tdelay,int col,unsigned char *dr,int dp)
 {
          int along,three,phase,aphase,ap;
 	 struct timespec tim, tim2;
@@ -780,7 +743,7 @@ void display_buffer (unsigned char *sent,int tdelay,int *col,unsigned char *dr,i
          tim.tv_nsec = 10000000L;
 
          three=0;
-	 if (*col==0 )
+	 if (col==0 )
 	 {
          	for (along=0;along<X_SIZE*Y_SIZE*4;along+=4)
          	{
@@ -788,8 +751,8 @@ void display_buffer (unsigned char *sent,int tdelay,int *col,unsigned char *dr,i
                 	x_buffer[along+1]=sent[three++];
                 	x_buffer[along+2]=sent[three++];
          	}
- 	}else if (*col <= 100){
-		phase=*col;aphase=100-*col;
+ 	}else if (col <= 100){
+		phase=col;aphase=100-col;
          	for (along=0;along<X_SIZE*Y_SIZE*4;along+=4)
          	{
 			int avg,rvg,svg;
@@ -800,7 +763,8 @@ void display_buffer (unsigned char *sent,int tdelay,int *col,unsigned char *dr,i
                 	x_buffer[along+1]=svg;
                 	x_buffer[along+2]=svg;
 		}	
-       	}else if (*col <= 200){
+       	}else if (col <= 200){
+		phase=col-100;aphase=200-col;
          	for (along=0;along<X_SIZE*Y_SIZE*4;along+=4)
          	{
 			int avg,r,g,b;
@@ -808,14 +772,12 @@ void display_buffer (unsigned char *sent,int tdelay,int *col,unsigned char *dr,i
 			g=sent[three++];
 			b=sent[three++];
 			avg=(r+g+b)/3;
-			r=(((200-*col)*avg)+((*col-100)*r))/100;
-			g=(((200-*col)*avg)+((*col-100)*g))/100;
-			b=(((200-*col)*avg)+((*col-100)*b))/100;
-                	x_buffer[along]=r;
-                	x_buffer[along+1]=g;
-                	x_buffer[along+2]=b;
+                	x_buffer[along]=((aphase*avg)+(phase*r))/100;
+                	x_buffer[along+1]=((aphase*avg)+(phase*g))/100;
+                	x_buffer[along+2]=((aphase*avg)+(phase*b))/100;
 		}
-	} else if (*col <=300) {
+	} else if (col <=300) {
+		phase=col-200;aphase=300-col;
          	for (along=0;along<X_SIZE*Y_SIZE*4;along+=4)
 		{
 			int r,g,b,rr,gg,bb;
@@ -826,16 +788,16 @@ void display_buffer (unsigned char *sent,int tdelay,int *col,unsigned char *dr,i
 			if (r>127){ rr=255;}
 			if (g>127){ gg=255;}
 			if (b>127){ bb=255;}
-			r=(((300-*col)*r)+((*col-200)*rr))/100;
-			g=(((300-*col)*g)+((*col-200)*gg))/100;
-			b=(((300-*col)*b)+((*col-200)*bb))/100;
+			r=((aphase*r)+(phase*rr))/100;
+			g=((aphase*r)+(phase*gg))/100;
+			b=((aphase*r)+(phase*bb))/100;
                 	x_buffer[along]=r;
                 	x_buffer[along+1]=g;
                 	x_buffer[along+2]=b;
 		}
-	} else if (*col <=400) { 
-		phase=*col-300;
-		aphase=400-*col;
+	} else if (col <=400) { 
+		phase=col-300;
+		aphase=400-col;
          	for (along=0;along<X_SIZE*Y_SIZE*4;along+=4)
 		{
 			int r,g,b,rr,gg,bb;
@@ -849,8 +811,8 @@ void display_buffer (unsigned char *sent,int tdelay,int *col,unsigned char *dr,i
                 	x_buffer[along+1]=gg;
                 	x_buffer[along+2]=bb;
 		}
-        } else if (*col <=500) {
-		phase=*col-400;aphase=500-*col;
+        } else if (col <=500) {
+		phase=col-400;aphase=500-col;
                 for (along=0;along<X_SIZE*Y_SIZE*4;along+=4)
                 {
 			int r,g,b,rr,gg,bb;
@@ -864,10 +826,9 @@ void display_buffer (unsigned char *sent,int tdelay,int *col,unsigned char *dr,i
                 	x_buffer[along+1]=gg;
                 	x_buffer[along+2]=bb;
                 }
-        } else if (*col <=600) {
-                phase=*col-500;
-                aphase=600-*col;
-		printf ("phase %d aphase %d \n",phase,aphase);
+        } else if (col <=600) {
+                phase=col-500;
+                aphase=600-col;
                 for (along=0;along<X_SIZE*Y_SIZE*4;along+=4)
                 {
 			int r,g,b,rr,gg,bb;
@@ -883,32 +844,14 @@ void display_buffer (unsigned char *sent,int tdelay,int *col,unsigned char *dr,i
                 }
         }
 
-
-	if (*col>0 && col[1] != 0)
-	{
-		if (col[2]==0)
-		{
-			col[2]=tick;
-		}else{
-			int inc;
-			inc=(tick-col[2])/col[1];
-			if (inc >0 )
-			{
-				col[0]=col[0]+inc;
-				col[2]=tick;
-			}
-		}
-	}
-	if (*col==300 ){ col[0]=1;}
-	if (*col>=600){ col[0]=301;}
-
 	three=0;
-	ap=1000-dp;
+	ap=100-dp;
+	// add the drone
         for (along=0;along<X_SIZE*Y_SIZE*4;along+=4)
 	{
-                	x_buffer[along]=((ap*x_buffer[along])+(dp*dr[three++]))/1000;
-                	x_buffer[along+1]=((ap*x_buffer[along+1])+(dp*dr[three++]))/1000;
-                	x_buffer[along+2]=((ap*x_buffer[along+2])+(dp*dr[three++]))/1000;
+                	x_buffer[along]=((ap*x_buffer[along])+(dp*dr[three++]))/100;
+                	x_buffer[along+1]=((ap*x_buffer[along+1])+(dp*dr[three++]))/100;
+                	x_buffer[along+2]=((ap*x_buffer[along+2])+(dp*dr[three++]))/100;
 	} 	
         // This dispays the buffer
 	//printf ("Before %d\n",tick);
