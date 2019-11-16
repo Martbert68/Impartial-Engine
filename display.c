@@ -540,28 +540,85 @@ void noise(unsigned char *input,unsigned char *output,int ent)
 
 void juxta(unsigned char *input,unsigned char *output,int ent) 
 {
-        int y,x,Y,X;
-	int x1,x2,x3,x4,y1,y2,y3,y4;
+        int y1,y2,y3,y4,y,x,xoff,ys;
+	int x1,x2,x3,x4,ts,bs,ls,rs;
+	char *tempa;
+   	tempa=(char *)malloc(sizeof(char)*THREE);
+
+	x1=(ent%3)*11;x2=X_SIZE-((ent%11)*3);
+	x3=(ent%5)*7;x4=X_SIZE-((ent%7)*5);
+	y1=(ent%13)*3;y2=Y_SIZE-((ent%3)*13);
+	y3=(ent%19)*5;y4=Y_SIZE-((ent%5)*19);
+
+	ts=1024*(x2-x1)/X_SIZE;
+	bs=1024*(x4-x3)/X_SIZE;
+	ls=1024*(y2-y1)/Y_SIZE;
+	rs=1024*(y4-y3)/Y_SIZE;
 
 	for (y=0;y<Y_SIZE;y++)
 	{	
-		int ALONG,along;
-		ALONG=y*XS;
+		int along,us,xoff,n;
 		along=y*XS;
+		n=0;
+		us=((ts*(Y_SIZE-y))+(bs*y))/Y_SIZE;
+		if (us==0){us=1;}
+		if (us<1){us=-us;n=1;}
+		xoff=((x1*(Y_SIZE-y))+(x3*y))/Y_SIZE;
 		for (x=0;x<X_SIZE;x++)
 		{
 			int xp,p;
 			p=along+(3*x);
-			xp=(x*(Y_SIZE-(y/2)))/Y_SIZE;
+			if (n==0){
+				xp=((x-xoff)*1024)/us;}else{
+				xp=((xoff-x)*1024)/us;}
 			if (xp>0 && xp<X_SIZE)
 			{
-			xp=(xp*3)+ALONG;
-			output[p]=input[xp];
-			output[p+1]=input[xp+1];
-			output[p+2]=input[xp+2];
+				xp=(xp*3)+along;
+				tempa[p]=input[xp];
+				tempa[p+1]=input[xp+1];
+				tempa[p+2]=input[xp+2];
+			} else {
+				tempa[p]=0;
+				tempa[p+1]=0;
+				tempa[p+2]=0;
 			}
 		}
 	}
+	//memcpy (tempa,input,THREE);
+
+        for (x=0;x<X_SIZE;x++)
+        {
+                int along,us,yoff,yp,n;
+                n=0;
+                us=((ls*(X_SIZE-x))+(rs*x))/X_SIZE;
+                if (us==0){us=1;}
+                if (us<1){us=-us;n=1;}
+                yoff=((y1*(X_SIZE-x))+(y3*x))/X_SIZE;
+                for (y=0;y<Y_SIZE;y++)
+                {
+                        int yp,p;
+                	along=y*XS;
+                        p=along+(x*3);
+                        if (n==0){
+                                yp=((y-yoff)*1024)/us;}else{
+                                yp=((yoff-y)*1024)/us;}
+                        if (yp>0 && yp<Y_SIZE)
+                        {
+                                yp=(x*3)+(yp*XS);
+                                output[p]=tempa[yp];
+                                output[p+1]=tempa[yp+1];
+                                output[p+2]=tempa[yp+2];
+                        } else {
+                                /*output[p]=input[p];
+                                output[p+1]=input[p+1];
+                                output[p+2]=input[p+2]; */
+                                output[p]=0;
+                                output[p+1]=0;
+                                output[p+2]=0;
+                        }
+                }
+        }
+	free (tempa);
 }
 
 void scroll (unsigned char *input,unsigned char *output,int ent) 
