@@ -16,7 +16,8 @@ struct Image_Bundle {
 	int dronep;
 	int maint;
 	int loadp;
-	int noise;
+	int noise[10];
+	int jux[10];
 	int hold;
 	int speed;
 	int stage;

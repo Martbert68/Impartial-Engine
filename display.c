@@ -38,12 +38,13 @@ void dletters(unsigned char *,unsigned char *,int,int,char *);
 void dimage(unsigned char *,unsigned char *,int);
 void noise(unsigned char *,unsigned char *,int);
 void scroll(unsigned char *,unsigned char *,int);
-void juxta(unsigned char *,unsigned char *,int);
+void juxta(unsigned char *,unsigned char *,int,int);
+void juxtm(unsigned char *,unsigned char *,int,int);
 void not_up(unsigned char *,unsigned char *,int);
 void x_split(unsigned char *,unsigned char *,int);
 void y_split(unsigned char *,unsigned char *,int);
 void xy_split(unsigned char *,unsigned char *,int);
-int frames(unsigned char *,unsigned char *,unsigned char *,int);
+int frames(unsigned char *,unsigned char *,int);
 void *filter(void *);
 struct font {
         char name[150];
@@ -333,10 +334,13 @@ void *filter(void *ib )
 				dimage(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
          		break;
       			case 'i' :
-				noise(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),bundle->noise);
+				noise(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),bundle->noise[inst]);
          		break;
       			case 'j' :
-				juxta(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
+				juxta(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry,bundle->jux[inst]);
+         		break;
+      			case 'J' :
+				juxtm(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry,bundle->jux[inst]);
          		break;
       			case 'n' :
 				not_up(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
@@ -357,7 +361,7 @@ void *filter(void *ib )
 				xy_split(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
          		break;
 			case 'f' :
-				hold_out=frames(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),sideb+(inst*THREE*5),entry);
+				hold_out=frames(average_buffer+(THREE*iplace),average_buffer+(THREE*oplace),entry);
 			break;
 			default:
 			break;
@@ -538,17 +542,88 @@ void noise(unsigned char *input,unsigned char *output,int ent)
         }
 }
 
-void juxta(unsigned char *input,unsigned char *output,int ent) 
+void juxtm(unsigned char *input,unsigned char *output,int ent,int type)
 {
-        int y1,y2,y3,y4,y,x,xoff,ys;
+        int y,x,xoff,ys,m;
+        int x1,x2,x3,x4,ts,bs,ls,rs;
+
+        if (type==1){
+        m=(X_SIZE*(1+sin(ent*M_PI/41)))/8;
+        x1=m;x2=X_SIZE-m;
+        x3=m;x4=X_SIZE-m;}
+        else if  (type==2){
+        m=(ent*64)%X_SIZE;
+        x1=m;x2=X_SIZE-m;
+        x4=m;x3=X_SIZE-m;
+        }else if (type==3){
+        x1=0;x2=X_SIZE/2;
+        x3=X_SIZE/2;x4=X_SIZE;
+        }
+
+        ts=1024*(x2-x1)/X_SIZE;
+        bs=1024*(x4-x3)/X_SIZE;
+
+	        for (y=0;y<Y_SIZE;y++)
+        {
+                int along,us,xoff,n;
+                along=y*XS;
+                n=0;
+                us=((ts*(Y_SIZE-y))+(bs*y))/Y_SIZE;
+                if (us==0){us=1;}
+                if (us<1){us=-us;n=1;}
+                xoff=((x1*(Y_SIZE-y))+(x3*y))/Y_SIZE;
+                for (x=0;x<X_SIZE;x++)
+                {
+                        int xp,p;
+                        p=along+(3*x);
+                        if (n==0){
+                                xp=((x-xoff)*1024)/us;}else{
+                                xp=((xoff-x)*1024)/us;}
+                        if (xp>0 && xp<X_SIZE)
+                        {
+                                xp=(xp*3)+along;
+                               	output[p]=input[xp];
+                                output[p+1]=input[xp+1];
+                                output[p+2]=input[xp+2];
+                        } else {
+                                output[p]=input[p];
+                                output[p+1]=input[p+1];
+                                output[p+2]=input[p+2];
+                        }
+                }
+        }
+}
+
+void juxta(unsigned char *input,unsigned char *output,int ent,int type) 
+{
+        int y1,y2,y3,y4,y,x,xoff,ys,m;
 	int x1,x2,x3,x4,ts,bs,ls,rs;
 	char *tempa;
    	tempa=(char *)malloc(sizeof(char)*THREE);
 
-	x1=(ent%3)*11;x2=X_SIZE-((ent%11)*3);
+	if (type==1){
+	// jiggle
+	x1=(rand()%3)*11;x2=X_SIZE-((rand()%11)*3);
 	x3=(ent%5)*7;x4=X_SIZE-((ent%7)*5);
-	y1=(ent%13)*3;y2=Y_SIZE-((ent%3)*13);
-	y3=(ent%19)*5;y4=Y_SIZE-((ent%5)*19);
+	y1=(rand()%13)*3;y2=Y_SIZE-((rand()%3)*13);
+	y3=(ent%19)*5;y4=Y_SIZE-((ent%5)*19); }
+	else if  (type==2){
+	// crossbow
+	//m=(ent*64)%X_SIZE;
+        m=(X_SIZE*(sin(ent*M_PI/41)))/2;
+	x1=m;x2=X_SIZE-m;
+	x4=m;x3=X_SIZE-m;
+	y1=0;y2=Y_SIZE;
+	y3=0;y4=Y_SIZE;
+	}else if (type==3){
+	// flip around	
+        m=(X_SIZE*(sin(ent*M_PI/41)))/2;
+        x1=(X_SIZE/2)+m;x2=(X_SIZE/2)-m;
+        x3=x1;x4=x2;
+        m=(Y_SIZE*(sin(ent*M_PI/83)))/2;
+        y1=(Y_SIZE/2)+m;y2=(Y_SIZE/2)-m;
+        y3=y1;y4=y2;
+	}
 
 	ts=1024*(x2-x1)/X_SIZE;
 	bs=1024*(x4-x3)/X_SIZE;
@@ -721,74 +796,74 @@ void dimage(unsigned char *input,unsigned char *output,int ent)
 }
 
 
-int frames(unsigned char *input,unsigned char *output,unsigned char * buff,int ent)
+int frames(unsigned char *input,unsigned char *output,int ent)
 {
         int along;
-        int f,b,bnow,x,y,bp,XH,YH,BH;
-	XH=(X_SIZE*3)/2;
+        int b,x,y,bp,YH,BH;
 	YH=THREE/2;
 	BH=XH+YH;
 
         b=ent&3;
-        bnow=(b*THREE);
-        memcpy (buff+bnow,input,THREE);
-	if ( b != 3 )
+	if (b==0)
 	{
-		// shove out the last thing
-		//printf ("Inst Shoving %d \n",b);
-        	memcpy (output,buff+(4*THREE),THREE);
-	} else{
-		f=0;
-		bp=f*THREE;
-       		for (y=0;y<(Y_SIZE/2);y++)
+       		for (y=0;y<Y_SIZE/2;y++)
 		{
-			along=3*y*X_SIZE;
-       			for (x=0;x<(XH);x+=3)
+			along=y*XS;
+       			for (x=0;x<XH;x+=3)
 			{
-                 		output[along+x]=buff[2*(along+x)];
-                 		output[along+x+1]=buff[2*(along+x)+1];
-                 		output[along+x+2]=buff[2*(along+x)+2];
+				int a=along+x;
+				int aa=2*a;
+                 		output[a]=input[aa];
+                 		output[a+1]=input[aa+1];
+                 		output[a+2]=input[aa+2];
 			}
 		}
-        	f=1;
-        	bp=f*THREE;
-        	for (y=0;y<Y_SIZE/2;y++)
-        	{
-                	along=3*y*X_SIZE;
-                	for (x=0;x<XH;x+=3)
-                	{
-                        	output[XH+along+x]=buff[bp+2*(along+x)];
-                        	output[XH+along+x+1]=buff[bp+2*(along+x)+1];
-                        	output[XH+along+x+2]=buff[bp+2*(along+x)+2];
-                	}
-        	}
-        	f=2;
-        	bp=f*THREE;
-        	for (y=0;y<Y_SIZE/2;y++)
-        	{
-                	along=3*y*X_SIZE;
-                	for (x=0;x<=XH;x+=3)
-                	{
-                        	output[YH+along+x]=buff[bp+2*(along+x)];
-                        	output[YH+along+x+1]=buff[bp+2*(along+x)+1];
-                        	output[YH+along+x+2]=buff[bp+2*(along+x)+2];
-               		 }	
-        	}
-        	f=3;
-        	bp=f*THREE;
-        	for (y=0;y<Y_SIZE/2;y++)
-        	{
-                	along=3*y*X_SIZE;
-                	for (x=0;x<=XH;x+=3)
-                	{
-                        	output[BH+along+x]=buff[bp+2*(along+x)];
-                        	output[BH+along+x+1]=buff[bp+2*(along+x)+1];
-                        	output[BH+along+x+2]=buff[bp+2*(along+x)+2];
-                	}
-		// buffer the last thing for the next 3 frames
-		}
-        	memcpy (buff+(4*THREE),output,THREE);
 	}
+        if (b==1)
+        {
+                for (y=0;y<Y_SIZE/2;y++)
+                {
+                        along=y*XS;
+                        for (x=0;x<XH;x+=3)
+                        {
+                                int a=along+x+XH;
+                                int aa=2*(along+x);
+                                output[a]=input[aa];
+                                output[a+1]=input[aa+1];
+                                output[a+2]=input[aa+2];
+                        }
+                }
+        }
+	if (b==2)
+        {
+                for (y=0;y<Y_SIZE/2;y++)
+                {
+                        along=y*XS;
+                        for (x=0;x<XH;x+=3)
+                        {
+                                int a=YH+along+x;
+                                int aa=2*(along+x);
+                                output[a]=input[aa];
+                                output[a+1]=input[aa+1];
+                                output[a+2]=input[aa+2];
+                        }
+                }
+        }
+        if (b==3)
+        {
+                for (y=0;y<Y_SIZE/2;y++)
+                {
+                        along=y*XS;
+                        for (x=0;x<XH;x+=3)
+                        {
+                                int a=BH+along+x;
+                                int aa=2*(along+x);
+                                output[a]=input[aa];
+                                output[a+1]=input[aa+1];
+                                output[a+2]=input[aa+2];
+                        }
+                }
+        }
 	if (b<3){ return 1;}else{return 0;}
 }
 

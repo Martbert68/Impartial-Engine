@@ -136,15 +136,23 @@ int main(int argc,char *argv[])
 	 shared_image->dmode[instance]='f';
 	 break;
       case 'i' :	 
-         printf("Insert Noise\n" ); 
+         printf("Insert Noise 1-4\n" ); 
          printf("Type \n" ); 
-	 scanf(" %d",&shared_image->noise);
+	 scanf(" %d",&shared_image->noise[instance]);
 	 shared_image->dmode[instance]='i';
 	 break;
       case 'j' :	 
-         printf("Juxtapose\n" ); 
+         printf("juxtapose\n" ); 
+         printf("Type 1-2\n" ); 
+	 scanf(" %d",&shared_image->jux[instance]);
 	 shared_image->dmode[instance]='j';
 	 break;
+       case 'J' :
+         printf("Juxtapose\n" );
+         printf("Type 1-2\n" );
+         scanf(" %d",&shared_image->jux[instance]);
+         shared_image->dmode[instance]='J';
+         break;
       case 's' :	 
          printf("Sscroll n" ); 
 	 shared_image->dmode[instance]='s';
